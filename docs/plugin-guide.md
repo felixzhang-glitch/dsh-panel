@@ -1,9 +1,9 @@
 ## DSH 插件开发·维护·部署指南
 
-以 `dsh-token-usage`（Token 消耗看板）为实例，覆盖静态 Cordis 插件从开发到分发的完整链路
+以 `dsh-token-usage`（用量统计）为实例，覆盖静态 Cordis 插件从开发到分发的完整链路
 
 > 适用对象：DeepSeek Harness 0.1.0-rc 系列，`dsh web` 部署
-> 实例插件：设置页 Token 用量看板，host 聚合 `/token-usage/stats` 路由 + client 三视图 UI
+> 实例插件：设置页用量统计，host 聚合 `/token-usage/stats` 路由 + client 单页多视图 UI（时间范围筛选、指标卡、活跃热力图、按天趋势、模型用量）
 
 ## 插件的两种形态
 
@@ -104,7 +104,7 @@ window.__ModuleLoader__.load({
         name: "settings.section",
         id: "token-usage",
         order: 90,
-        label: () => "Token 用量"  // 支持函数形式，运行时取 locale 文案
+        label: () => "用量统计"  // 支持函数形式，运行时取 locale 文案
       }, () => react.createElement(Dashboard)));
     }
 
@@ -190,9 +190,9 @@ window.__ModuleLoader__.load({
 ### client 开发要点
 
 - 组件状态机三态（loading/error/ready）+ 空数据态，错误信息直接展示并给重试
-- 图表用纯 div 堆叠（flex-grow 按 token 数加权），免引图表库
-- 表格/卡片/按钮全部走 `--dsw-alias-*` 边框与背景 token，视觉与宿主一致
-- 数据视图按页签拆分渲染，聚合结果一次取全，前端只切片
+- 图表零图表库：柱状用纯 div 堆叠（flex-grow 按 token 数加权），折线用 SVG polyline 覆盖层（viewBox 0-100 + non-scaling-stroke），环图用 circle stroke-dasharray，热力图用 CSS grid
+- 卡片/按钮/图例走 `--dsw-alias-*` 边框背景 token，系列色走 `--dsw-static-*` 固定色 token，视觉与宿主一致且适配深浅色
+- 数据视图按时间范围筛选，聚合结果一次取全，前端只切片
 
 ### 本地验证（三层，不启动 DSH）
 

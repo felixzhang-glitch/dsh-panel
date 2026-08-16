@@ -1,12 +1,14 @@
 # dsh-token-usage
 
-DeepSeek Harness 的 Token 消耗看板插件，挂载在 设置 → Token 用量
+DeepSeek Harness 的模型用量统计插件，挂载在 设置 → 用量统计
 
 ## 功能
 
-- 总览：总量、输入(未缓存)、缓存读、缓存写、输出、请求数卡片，近 14 天趋势图，模型占比
-- 按日期：近 120 天每日堆叠图与明细表
-- 按模型：provider/model 明细与占比
+- 时间范围：最近 7 / 14 / 30 / 90 天与自定义区间
+- 指标卡：Tokens 用量、完成轮次、请求数量、活跃天数、平均缓存命中率、最常用模型
+- 活跃热力图：GitHub 贡献图风格，近 365 天
+- 按天 Token 趋势：top 5 模型堆叠柱 + 缓存命中率折线
+- 模型用量：环图 + provider/model 明细与占比
 - 数据源为会话日志 `assistant/message` 事件的 provider 上报用量；fork 会话继承历史不重复计数；服务端 60 秒缓存
 - 界面全部走 `--dsw-*` 主题 token，与宿主深浅色主题一致；文案随 locale 中英切换
 
@@ -26,7 +28,7 @@ cd dsh-token-usage
 2. 建立模块解析符号链接（profile 树 + DSH 运行树 node_modules，运行树自动探测）
 3. 在 `~/.dsh/profiles/web/cordis.patch.yml` 幂等追加挂载行
 
-完成后重启 DSH，刷新页面，设置 → Token 用量
+完成后重启 DSH，刷新页面，设置 → 用量统计
 
 > 运行树自动探测失败时手动指定：`./install.sh <含 @deepseek-ai/dsh 的 node_modules 根目录>`
 
