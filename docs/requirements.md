@@ -8,6 +8,12 @@
 
 ## 记录
 
+### 2026-08-20 README 平台口径重写
+
+- 模块：平台
+- 需求：README 从 dsh-token-usage 单插件口径重写为 dsh-panel 平台口径（模块清单、统一安装/卸载双通道说明、结构、文档索引、维护注意事项）；仓库已更名 felixzhang-glitch/dsh-panel
+- 状态：已完成
+
 ### 2026-08-20 回退 dsh-session-files，接入 dsh-better-sidebar
 
 - 模块：平台
