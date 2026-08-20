@@ -12,6 +12,8 @@ DeepSeek Harness (DSH) 插件集合仓库，统一安装入口，按需挂载
 
 后续新增自有模块落 `modules/<模块名>/`，接入时登记到 `docs/design.md` 模块清单
 
+> dsh-better-sidebar 出处：[omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)（MIT），本仓库只维护安装编排，源码以上游为准
+
 ## 安装
 
 要求：DSH 0.1.0-rc 系列且初始化过（存在 `~/.dsh/profiles/web/`），node 在 PATH；better-sidebar 另需联网与 pnpm
