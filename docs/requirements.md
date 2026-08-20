@@ -8,6 +8,26 @@
 
 ## 记录
 
+### 2026-08-20 dsh-better-sidebar vendor 回退，恢复 npm bundle 通道
+
+- 模块：dsh-better-sidebar
+- 需求：评估 vendor 内化方案后决定回退，恢复第三方 npm 包 + 官方 bundle 通道接入
+  - 当日曾完成 vendor 内化（src + 预构建 lib 进 modules/、安装改 pnpm workspace 本地通道），权衡后放弃：失去上游自动供版、仓库 +11M、多两条软链维护责任（Node ESM 按 realpath 解析需桥接 node_modules），自用场景收益不抵成本
+  - 回退动作：install.sh / uninstall.sh 与文档 git 恢复原口径，modules/dsh-better-sidebar 删除，profile 的 workspace 登记清理，重走 `dsh plugin --profile web add` 安装
+- 结果：恢复为 dsh-better-sidebar@0.14.0 npm bundle 通道安装
+- 状态：已完成
+
+### 2026-08-20 dsh-time-awareness v0.1.0
+
+- 模块：dsh-time-awareness
+- 需求：时间感知插件，保证每一轮对话注入一条时间信息，让模型具备墙上时钟感知
+  - `agent/pre-step` prepend 监听器，默认每轮第一条模型请求（step 1）注入一条 sourced user 消息；`everyStep: true` 切换为每 step 注入
+  - 注入三行：ISO 形带时区时间戳（优先取浏览器时区，回退配置/进程时区）、浏览器时区策略（resolved/mixed/missing）、距上一条模型可见消息的耗时
+  - 配置 `timeZone` / `refreshIntervalMs` / `everyStep`，手写校验（profile 目录无法解析运行树裸包名，不引 schemastery），非法配置加载期 fail loud
+  - 节流无状态：倒序扫 session 事件找本插件最近注入，compaction/resume 后仍正确；注入失败只告警不挂 turn
+- 结果：mock 冒烟 21 项通过；临时 DSH_HOME 沙盒安装/卸载演练通过；实机安装成功（patch 行 + 双链接），待重启 DSH 生效
+- 状态：已完成
+
 ### 2026-08-20 README 平台口径重写
 
 - 模块：平台

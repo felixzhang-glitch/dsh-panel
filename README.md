@@ -7,6 +7,7 @@ DeepSeek Harness (DSH) 插件集合仓库，统一安装入口，按需挂载
 | 模块 | 形态 | 功能 | 挂载位置 |
 | --- | --- | --- | --- |
 | dsh-token-usage | 自有（仓库根） | 模型用量统计：指标卡、活跃热力图、按天趋势、模型占比 | 设置 → 用量统计 |
+| dsh-time-awareness | 自有（modules/） | 时间感知：每轮对话注入一条带时区的时间读取，让模型感知墙上时钟 | 无 UI，注入会话历史 |
 | dsh-better-sidebar | 第三方（npm 接入） | VSCode 式工作台：文件树 / 编辑器 / 终端 / Git / 内嵌浏览器 / 文件预览 | 右侧栏 + 底部面板 |
 
 后续新增自有模块落 `modules/<模块名>/`，接入时登记到 `docs/design.md` 模块清单
@@ -50,6 +51,7 @@ TARGET 同安装（默认 all）；自有模块移除挂载行（留备份 `.bak
 package.json      # dsh-token-usage 双面声明：exports + dsh.client
 lib/index.js      # host 半：注册 GET /token-usage/stats，扫描会话日志聚合
 lib/client.js     # client 半：settings.section 三视图 UI
+modules/dsh-time-awareness/   # 时间感知（host-only，agent/pre-step 注入）
 modules/          # 自有新模块目录（预留）
 install.sh        # 统一安装入口（幂等）
 uninstall.sh      # 统一卸载入口
@@ -72,6 +74,7 @@ docs/             # 设计 / 架构 / 需求迭代 / 参考资料
 > `dsh` 经 npx 升级会重建缓存目录，自有模块的运行树符号链接失效，重跑 `./install.sh` 即修复
 
 - dsh-token-usage 依赖契约：`sessionQuery`、`webServer.register`、`settings.section` 槽位；验证版本 DSH 0.1.0-rc.6
+- dsh-time-awareness 依赖契约：`agents` 注册表的 `agent/pre-step` 瀑布；patch 行可选 config（`timeZone` / `refreshIntervalMs` / `everyStep`）；验证版本 DSH 0.1.0-rc.8
 - dsh-better-sidebar 0.14.0 适配 DSH 0.1.0-rc.8，升级前先确认运行树版本
 
 插件市场见 [github.com/topics/dsh-plugin](https://github.com/topics/dsh-plugin)

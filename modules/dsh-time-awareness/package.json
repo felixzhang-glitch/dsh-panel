@@ -1,0 +1,14 @@
+{
+  "name": "dsh-time-awareness",
+  "version": "0.1.0",
+  "description": "Per-turn time awareness for DeepSeek Harness: appends one sourced time reading (zoned timestamp, browser-zone policy, elapsed time) to every conversation turn so the model perceives wall-clock time",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "MIT"
+}

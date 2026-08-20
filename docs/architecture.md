@@ -58,6 +58,59 @@ client.js 三视图渲染（时间范围切片，前端不重复聚合）
 - `sessionQuery.listSessions/readSession`、`webServer.register`、`settings.section` 槽位、`--dsw-*` token、ModuleLoader 包装格式
 - 验证版本：DSH 0.1.0-rc.6
 
+## 模块架构：dsh-time-awareness
+
+### 定位与数据流
+
+host-only 模块（无 client 半、无 HTTP 路由），让模型感知墙上时钟：每个会话轮次注入一条带来源归属的时间读取消息
+
+```
+AgentLoop 提出 step
+        │ dispatch waterfall "agent/pre-step"
+        ▼
+prepend 监听器：先 await next() 委托下游决策
+        │ reject / aborted → 原样放行
+        │ step !== 1 且非 everyStep → 原样放行
+        │ refreshIntervalMs 节流命中（无状态扫 session 事件）→ 原样放行
+        ▼
+组装三行文本：时间戳（浏览器时区优先）+ 时区策略 + 距上条可见消息耗时
+        │ decision.messages 追加一条 sourced UserMessage
+        ▼
+AgentLoop 在 step/start 后落盘，进入会话历史直至 compaction 遮蔽
+```
+
+### host 半（modules/dsh-time-awareness/lib/index.js）
+
+- `inject: ["agents"]`；监听器经 `ctx.on("agent/pre-step", handler, { prepend: true })` 注册，随 fiber 卸载自动移除
+- 注入文本三行：`Current time at turn N start: 2026-08-20T17:24:05+08:00[Asia/Shanghai]`、浏览器时区策略（resolved → 按该时区解释未限定时间；mixed/missing → 提示向用户澄清）、`Elapsed since the preceding model-visible message: <duration>`
+- 浏览器时区取自本轮 user-rpc 消息源的 `clientTimeZone`（web 客户端每次 prompt 附带），IANA 正则 + `Intl.DateTimeFormat` 双重校验；缺失/混合回退配置 `timeZone`，再回退进程时区
+- 消息 source 遵循惯例：`{ kind: "plugin", plugin: "time-awareness", form: "snapshot", sections: [{ name, text }] }`
+- 节流无状态：倒序扫 `agent.session.events` 找最近一条本插件注入的 `event.time`，compaction/resume 后不需进程内缓存
+- 耗时基线：step 1 取最近 user/message、assistant/message、tool/result（排除本插件自身注入）；everyStep 模式后续 step 取本轮上一条本插件读取
+- 失败隔离：注入计算异常只 `ctx.logger.warn` 并原样放行下游决策，绝不挂 turn；配置非法（未知键、坏时区、负间隔）在 apply 期抛出，fail loud
+- 零裸包导入：profile 目录解析不到运行树 node_modules，配置手校验替代 schemastery，`Intl`/`crypto.randomUUID` 均为运行时内建
+
+### 配置
+
+patch 行默认无 config 即「每轮一条、进程时区、不节流」，可按需加：
+
+```yaml
+- insert:
+    - id: time-awareness
+      name: 'dsh-time-awareness'
+      config:
+        timeZone: Asia/Shanghai   # 可选，浏览器时区缺失时的显示回退
+        refreshIntervalMs: 60000  # 可选，0/省略 = 不节流
+        everyStep: true           # 可选，默认 false = 只注入每轮 step 1
+```
+
+### 部署拓扑与已知限制
+
+- 走自有模块标准通道：真包 `~/.dsh/profiles/web/dsh-time-awareness/` + 链接 A/B + patch 行，`./install.sh [all|dsh-time-awareness]` / `./uninstall.sh` 统一管理
+- 监听器注册在 agents 注册表根，对所有 agent 生效（含 subagent / workflow worker），token 成本按并发 agent 数放大；默认每轮一条 + 单条三行控制体量
+- 注入发生在请求准备期：后续准备失败时读取仍留在历史；每条读取累积至 compaction 遮蔽，append-only 不破坏 KV cache 前缀
+- 验证版本：DSH 0.1.0-rc.8
+
 ## 第三方接入：dsh-better-sidebar
 
 侧边栏工作台不自建，直接接入第三方插件 dsh-better-sidebar（独立仓库 omdsh-dev/DSH-better-sidebar，npm 包形态）

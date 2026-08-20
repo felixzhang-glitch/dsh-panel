@@ -4,7 +4,7 @@ This file provides guidance to Qoder (qoder.com) when working with code in this 
 
 ## 核心指令
 
-- 本仓库是 DeepSeek Harness (DSH) 插件集合仓库 dsh-panel 的开发迭代仓库；自有模块 dsh-token-usage 在仓库根，侧边栏工作台由第三方 dsh-better-sidebar 接入，后续会持续新增模块
+- 本仓库是 DeepSeek Harness (DSH) 插件集合仓库 dsh-panel 的开发迭代仓库；自有模块 dsh-token-usage 在仓库根（历史原因），新模块落 `modules/`（现有 dsh-time-awareness），侧边栏工作台由第三方 dsh-better-sidebar 接入，后续会持续新增模块
 - 每次需求迭代必须追加更新 `docs/requirements.md`（时间倒序）
 - 设计/架构变更需同步更新 `docs/design.md` / `docs/architecture.md`
 - 新模块接入需同步更新本文件代码地图与 docs 文档中的模块清单
@@ -32,6 +32,13 @@ This file provides guidance to Qoder (qoder.com) when working with code in this 
 | `lib/client.js` | client 半：ModuleLoader 包装的浏览器 bundle，注入 `settings.section` 槽位，三视图 UI（零图表库） |
 | `package.json` | 双面声明：`exports` + `dsh.client`（inject 运行时包，platform: web） |
 | `docs/plugin-guide.md` | 插件开发·维护·部署指南（对外发布文档） |
+
+### 模块 dsh-time-awareness（时间感知，modules/dsh-time-awareness/）
+
+| 路径 | 职责 |
+| --- | --- |
+| `modules/dsh-time-awareness/lib/index.js` | host-only Cordis 插件：`agent/pre-step` prepend 监听器，默认每轮 step 1 注入一条 sourced 时间读取（带时区时间戳、浏览器时区策略、耗时）；零裸包导入，节流无状态 |
+| `modules/dsh-time-awareness/package.json` | host 单面声明（无 `dsh.client`，无 UI） |
 
 ## 关键约束
 
