@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 平台文档层 | `docs/` | 设计、架构、需求迭代记录与参考资料 |
 | 模块代码层 | 仓库根（dsh-token-usage 包，历史原因）+ `modules/<模块名>/`（新模块） | 一个模块一个插件包，含 `lib/`、`package.json` |
-| 分发层 | `install.sh` / `uninstall.sh` | 平台统一入口；自有模块走符号链接 + patch 行，第三方（better-sidebar）委托官方 CLI bundle 通道 |
+| 分发层 | `dspm`（仓库根）+ `third-party.json` | 平台统一命令 dspm（list/install/uninstall/reload/add/update/pin/doctor）；自有模块走符号链接 + patch 行，第三方登记 registry 后走 bun 直装 + 手动 reconcile bundles |
 
 > 自有新模块接入时在本文件追加「模块架构」小节，并在 `design.md` 模块清单登记
 
@@ -51,7 +51,7 @@ client.js 三视图渲染（时间范围切片，前端不重复聚合）
 挂载      ~/.dsh/profiles/web/cordis.patch.yml 一行 insert
 ```
 
-> 已知限制：`dsh` 经 npx 升级会重建缓存目录导致链接 B 失效，重跑 `install.sh` 修复；web profile 无 HMR，patch 改动必须重启
+> 已知限制：`dsh` 经 npx/bunx 升级会重建缓存目录导致链接 B 失效，`dspm doctor` 检出、`dspm install <模块>` 修复；web profile 无 HMR，patch 改动必须重启（`dspm reload <模块> --restart --yes`）
 
 ### 依赖契约
 
@@ -106,7 +106,7 @@ patch 行默认无 config 即「每轮一条、进程时区、不节流」，可
 
 ### 部署拓扑与已知限制
 
-- 走自有模块标准通道：真包 `~/.dsh/profiles/web/dsh-time-awareness/` + 链接 A/B + patch 行，`./install.sh [all|dsh-time-awareness]` / `./uninstall.sh` 统一管理
+- 走自有模块标准通道：真包 `~/.dsh/profiles/web/dsh-time-awareness/` + 链接 A/B + patch 行，`dspm install|uninstall|reload dsh-time-awareness` 统一管理
 - 监听器注册在 agents 注册表根，对所有 agent 生效（含 subagent / workflow worker），token 成本按并发 agent 数放大；默认每轮一条 + 单条三行控制体量
 - 注入发生在请求准备期：后续准备失败时读取仍留在历史；每条读取累积至 compaction 遮蔽，append-only 不破坏 KV cache 前缀
 - 验证版本：DSH 0.1.0-rc.8
@@ -117,10 +117,17 @@ patch 行默认无 config 即「每轮一条、进程时区、不节流」，可
 
 ### 接入通道
 
+模块登记在 `third-party.json`（pin 版本 + channel: bundle + 验证过的 DSH 版本），dspm 读取后编排：
+
 ```
-install.sh install_better_sidebar()
-        │ 1. pnpm-workspace.yaml 幂等写 allowBuilds: node-pty（放行原生构建）
-        │ 2. dsh plugin --profile web add dsh-better-sidebar@<npm view 解析的最新版本>
+dspm install dsh-better-sidebar（installBundle）
+        │ 1. 幂等前置：pnpm-workspace.yaml allowBuilds（官方通道兜底）
+        │    + profile package.json trustedDependencies: ["node-pty"]（bun 侧）
+        │ 2. bun add dsh-better-sidebar@<registry pin 版本>（cwd=profile）
+        │ 3. prunePeers：剪除全部 peer 与 @deepseek-ai/*（bun 强制自动装
+        │    peer 且无开关，留着与宿主 cordis 双实例必炸）
+        │ 4. fixExecBits：恢复 node-pty spawn-helper 可执行位（bun 解包丢 +x）
+        │ 5. reconcileBundles：声明 dsh.bundle.patch 才登记进 dsh.profile.bundles
         ▼
 profile package.json：dependencies + dsh.profile.bundles 登记
         │ profile 启动时 bundle patch 自动挂载（insert id: better-sidebar）
@@ -128,9 +135,12 @@ profile package.json：dependencies + dsh.profile.bundles 登记
 右侧栏 + 底部面板：文件树 / CodeMirror 编辑器 / 终端 / Git / 浏览器 / 文件预览
 ```
 
+与官方 `dsh plugin` 通道的差异及原因：官方通道是纯 pnpm 转发（直连 npmjs，分钟级卡死）+ `autoInstallPeers: false` 天然不装 peer；bun 快但强制装 peer 且无开关，故 dspm 装后手动剪除并把官方通道的 `dsh.profile.bundles` reconcile 逻辑（reconcilePlugins）自理。
+
 ### 关键点
 
 - 与自有模块的符号链接 + patch 行通道完全独立：不建链接、不写用户 patch 行；手写挂载行会与 bundle 双挂载（duplicate prefix route 导致启动失败）
-- 卸载走 `dsh plugin --profile web remove dsh-better-sidebar`
+- 卸载走 `dspm uninstall dsh-better-sidebar`（底层 `bun remove` + reconcileBundles 摘除）
+- 升级走 `dspm update dsh-better-sidebar`（npm view 最新版 → 更新 registry pin → 重装）；锁版回滚走 `dspm pin`
 - 版本耦合：0.14.0 适配 DSH 0.1.0-rc.8，升级 better-sidebar 前先确认 DSH 运行树版本
 - 它暴露 `ctx.betterSidebar` 服务（registerTab / registerFileViewer），后续自有模块可扩展侧边栏页面而非自建 UI

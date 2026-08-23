@@ -220,15 +220,15 @@ node --check lib/client.js && node --check lib/index.js   # 语法
 
 ### 升级
 
-1. 覆盖 `~/.dsh/profiles/web/dsh-token-usage/` 下文件（或重跑 install.sh）
-2. 重启 DSH
+1. 覆盖 `~/.dsh/profiles/web/dsh-token-usage/` 下文件（仓库内直接 `dspm reload dsh-token-usage`）
+2. 重启 DSH（`dspm reload dsh-token-usage --restart --yes`）
 
 > client bundle 带 `?rev=<内容哈希>` 缓存戳，改 client.js 后浏览器自动取新，无需手动清缓存
 
 ### 回滚
 
 - 临时下线：从 `cordis.patch.yml` 删掉该 insert 段，重启；包文件保留
-- 完全卸载：删行 + 删两条链接 + 删包目录（uninstall.sh 一键，自动留 `cordis.patch.yml.bak-uninstall` 备份）
+- 完全卸载：删行 + 删两条链接 + 删包目录（`dspm uninstall dsh-token-usage` 一键，自动留 `cordis.patch.yml.bak-uninstall` 备份）
 
 ### 约定
 
@@ -242,17 +242,17 @@ node --check lib/client.js && node --check lib/index.js   # 语法
 ```
 dist/
 ├── dsh-token-usage/    # 插件包本体
-├── install.sh
-├── uninstall.sh
 └── README.md
 tar czf dsh-token-usage-dist.tar.gz dist/   # 权限先 chmod 755/644
 ```
 
-### install.sh 的四步
+> 仓库内安装统一由 `bin/dspm.mjs`（dspm）承担，不再随包分发独立安装脚本
+
+### dspm 安装自有模块的四步
 
 1. 复制包到目标 `~/.dsh/profiles/web/dsh-token-usage/`
 2. 建链接 A（profile 树）
-3. 自动探测运行树建链接 B：优先 `command -v dsh` 反查 realpath 定位 `node_modules` 根，回退扫描 `~/.npm/_npx/*/node_modules/@deepseek-ai/dsh`；探测失败接受显式传参 `./install.sh <node_modules 根>`
+3. 自动探测运行树建链接 B：优先正在运行的 dsh web 进程反查 `node_modules` 根，回退 `command -v dsh` realpath、bunx 临时缓存、`~/.npm/_npx`；探测失败接受显式传参 `--dsh-root <node_modules 根>`
 4. 幂等追加 patch 行：空文件直接写、已有行跳过、其他条目保留追加；写入前若运行树内可达 js-yaml 则做 YAML 校验
 
 ### 目标机要求
@@ -263,7 +263,7 @@ tar czf dsh-token-usage-dist.tar.gz dist/   # 权限先 chmod 755/644
 
 ### 已知限制
 
-> `dsh` 经 npx 升级会重建缓存目录，链接 B 随之失效，启动时该行加载失败；重跑 install.sh 即修复。若发行方想彻底消除该耦合，需要上游支持以 profile 为基底的裸名解析（`bareModuleBaseUrl`）
+> `dsh` 经 npx/bunx 升级会重建缓存目录，链接 B 随之失效，启动时该行加载失败；`dspm doctor` 可检出，`dspm install <模块>` 即修复。若发行方想彻底消除该耦合，需要上游支持以 profile 为基底的裸名解析（`bareModuleBaseUrl`）
 
 ### 兼容性声明
 

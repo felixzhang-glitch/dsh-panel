@@ -1,0 +1,9 @@
+[
+  {
+    "name": "dsh-better-sidebar",
+    "spec": "0.14.0",
+    "channel": "bundle",
+    "note": "VSCode 式右侧栏工作台：文件树 / 编辑器 / 终端 / Git / 内嵌浏览器 / 文件预览",
+    "dshVerified": "0.1.0-rc.8"
+  }
+]
