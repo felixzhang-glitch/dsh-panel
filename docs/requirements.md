@@ -8,6 +8,47 @@
 
 ## 记录
 
+### 2026-08-23 dsh-token-usage v0.2.1 审查修复
+
+- 模块：dsh-token-usage
+- 需求：全量审查插件能力，修复确认的问题
+  - 审查结论：聚合逻辑（60s 缓存 + single-flight、fork seed 去重、turns 按 `会话:轮次` 去重）健康无需动；增量聚合不可行（session header 无更新时间戳、`readSession` 只能全量读），维持全量扫 + 缓存；明确不引入金额/成本统计
+- 结果（3 处修复 + 1 处文档化）：
+  - client `Dashboard` 卸载竞态：fetch 挂 `AbortController`，槽位卸载/重复加载时 abort，AbortError 静默（消除切页时的 setState-on-unmounted 警告与旧响应闪屏）
+  - host `collect` worker 队列 `queue.shift()`（O(n²)）改共享索引游标
+  - `?refresh=1` 强刷加 5s 冷却（`REFRESH_MIN_MS`），防连点触发全量重扫
+  - 头注释补 fork 去重边界：父会话不在语料（已删除）时继承 seed 历史重复计入，低概率已知边界
+- 验证：`node --check` 双文件通过；`dspm reload` 重同步；`?refresh=1` 连发两次第二次 `generatedAt` 不变；`doctor` all good
+- 状态：已完成
+
+### 2026-08-23 dspm bundle 通道 pnpm → bun 迁移
+
+- 模块：平台
+- 需求：第三方 bundle 安装通道从 `dsh plugin add`（pnpm 转发）迁移为 bun 直装
+  - 动因：`dspm reload dsh-better-sidebar` 分钟级卡死——官方 `dsh plugin` 是纯 pnpm 转发器，pnpm 直连 npmjs 拉 342 个包慢且不稳
+- 结果：
+  - dspm bundle 通道重写为 `bun add`（cwd=profile）：冷装 28s / 缓存命中 <1s，删除 `dshCli()`；bun 路径按 `$BUN_INSTALL/bin` → `~/.bun/bin` → PATH 兜底解析
+  - 对抗 bun 强制自动装 peer（无开关）：`prunePeers` 装后剪除 profile node_modules 下全部直接 peer 与所有 `@deepseek-ai/*`（含传递 peer），终态与官方通道 `autoInstallPeers: false` 一致，防插件与宿主 cordis 双实例
+  - `fixExecBits`：bun 解包丢文件可执行位，恢复 node-pty `spawn-helper` 的 +x（终端功能依赖）；原生构建放行改 `trustedDependencies: ["node-pty"]`（实测 node-pty 1.1.0 走自带 prebuild，不从源码编译；`npm_config_disturl` 镜像保留作保险）
+  - `dsh.profile.bundles` 登记由 dspm `reconcileBundles` 自理（复刻官方 reconcilePlugins：声明 `dsh.bundle.patch` 才登记，卸载摘除）；`pnpm-workspace.yaml` 的 allowBuilds 保留，留给官方通道兜底
+  - 顺手修复：`REPO_ROOT` 遗留 `..`（dspm 已从 `bin/` 移至仓库根，原值指向仓库父级导致 registry 读不到）
+- 验证：`node --check` 通过；沙盒（临时 DSH_HOME + 假运行树）全流程通过（peer 剪净、PTY spawn 可用、bundles 登记正确）；实机 `reload dsh-better-sidebar` 2.4s 完成，`doctor` all good；`pnpm-lock.yaml` 保留作回退存档
+- 状态：已完成
+
+### 2026-08-23 平台统一管理命令 dspm
+
+- 模块：平台
+- 需求：插件统一管理（自用，仅 macOS）。自有模块 + 第三方优秀插件统一纳管，支持单模块安装/卸载/reload 重加载；维护命令合并为单入口，不同传参调整，支持 `-h`
+- 结果：
+  - 新增 `bin/dspm.mjs` 单命令（node，零三方依赖）：`list / install / uninstall / reload / add / update / pin / doctor`，全局与命令级 `-h`；install.sh / uninstall.sh 删除，逻辑移植并修复两处旧问题（卸载后 patch 文件结尾缺换行、CJK 表格对齐）
+  - 模块自动发现：仓库根包 + `modules/*` + `third-party.json` registry，target 可省 `dsh-` 前缀，消灭硬编码 case
+  - 第三方纳管：新增 `third-party.json` registry（name / spec pin / channel / note / dshVerified），dsh-better-sidebar 迁入；`dspm add <pkg>[@ver]` 一条命令完成校验 → 登记 → bundle 通道安装；`update` 升 pin、`pin` 锁版
+  - reload 语义落地：重同步文件（自有重拷 / 第三方按 pin 重装）+ 按模块形态提示生效方式；`--restart --yes` kill 后以 `bunx @deepseek-ai/dsh@latest web` 后台拉起（日志 `~/.dsh/dspm-restart.log`），`--no-start` 只杀不起
+  - doctor 体检：链接 A/B 断链（npx/bunx 升级后链接 B 失效）、patch 行缺失、bundle 未登记、registry pin 与实装版本错配、`.bak-*` 残留；`dspm uninstall --prune-backups`（不传 target）仅清理备份
+  - 运行树探测增强：优先命中正在运行的 dsh web 进程，兼容 bunx 临时缓存（原脚本只探 PATH + npx 缓存）；沙盒演练须显式 `--dsh-root` 防止误触真机运行树
+- 验证：`node --check` 通过；临时 DSH_HOME 沙盒 install/reload/uninstall/prune 全流程通过；实机 `list` / `doctor` 与实际安装一致（演练中误删的真机链接 B 已用 `dspm install dsh-token-usage` 幂等修复），doctor all good
+- 状态：已完成
+
 ### 2026-08-20 dsh-better-sidebar vendor 回退，恢复 npm bundle 通道
 
 - 模块：dsh-better-sidebar
