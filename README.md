@@ -16,12 +16,12 @@ DeepSeek Harness (DSH) 插件集合仓库，统一命令纳管自有模块与第
 
 ## 管理命令 dspm
 
-要求：macOS，DSH 0.1.0-rc 系列且初始化过（存在 `~/.dsh/profiles/web/`），node 在 PATH；第三方安装另需联网与 pnpm
+要求：macOS，DSH 0.1.0-rc 系列且初始化过（存在 `~/.dsh/profiles/web/`），node 在 PATH；第三方安装另需联网与 [bun](https://bun.sh)
 
 ```
 git clone git@github.com:felixzhang-glitch/dsh-panel.git
 cd dsh-panel
-./bin/dspm.mjs install all      # 装全部
+./dspm install all      # 装全部
 ```
 
 单命令多传参，`-h` 看全量帮助，`dspm <command> -h` 看单命令用法：
@@ -32,7 +32,7 @@ cd dsh-panel
 | `dspm install <target\|all>` | 安装；幂等，断链缺行重跑即修复 |
 | `dspm uninstall <target\|all>` | 卸载；`--prune-backups` 不传 target 时仅清 `.bak-*` 残留 |
 | `dspm reload <target>` | 重同步模块文件（自有重拷 / 第三方按 pin 重装） |
-| `dspm add <pkg>[@ver]` | 纳管第三方：校验 → 登记 third-party.json → bundle 通道安装 |
+| `dspm add <pkg>[@ver]` | 纳管第三方：校验 → 登记 third-party.json → bun 通道安装 |
 | `dspm update [target]` | 第三方升级到 npm 最新版并更新 pin |
 | `dspm pin <pkg> <ver>` | 锁定第三方版本并重装 |
 | `dspm doctor` | 体检：断链 / patch 缺失 / bundle 未登记 / 版本错配 / 备份残留 |
@@ -42,7 +42,7 @@ target 为模块名（可省 `dsh-` 前缀），默认 all；运行树 node_modu
 两条安装通道：
 
 - 自有模块：复制包到 profile + 双符号链接 + `cordis.patch.yml` 幂等挂载行
-- 第三方：`dsh plugin --profile web add` 官方 bundle 通道，注册进 `dsh.profile.bundles`，不写挂载行（手写会与 bundle 双挂载导致启动失败）
+- 第三方：dspm 以 `bun add` 直装进 profile（替代官方 `dsh plugin` 的 pnpm 转发，快且稳），装后自动剪除 peer（bun 强制装 peer，留着与宿主双实例）、恢复 node-pty 预构建产物的可执行位，并登记进 `dsh.profile.bundles`；不写挂载行（手写会与 bundle 双挂载导致启动失败）
 
 ## reload 与重启
 
@@ -54,7 +54,7 @@ web profile 无 HMR：
 ## 结构
 
 ```
-bin/dspm.mjs      # 统一管理命令（单入口，零三方依赖）
+dspm              # 统一管理命令（仓库根，单入口，零三方依赖）
 third-party.json  # 第三方模块 registry（名称 / pin 版本 / 通道 / 备注）
 package.json      # dsh-token-usage 双面声明：exports + dsh.client
 lib/              # dsh-token-usage host 半 + client 半
