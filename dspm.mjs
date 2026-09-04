@@ -272,6 +272,16 @@ function removePatchRow(id) {
   console.log(removed ? `    row removed (backup: ${PATCH_FILE}.bak-uninstall)` : '    row not found')
 }
 
+// Node 16 rmSync 对目录不带 recursive 会抛 EISDIR；符号链接删除只摘链接不伤目标
+// 真实目录仅在 allowRealDir（自有 dest 包目录）时允许递归删，防沿旧链接误删外部目录
+function removeEntry(p, { allowRealDir = false } = {}) {
+  let st
+  try { st = fs.lstatSync(p) } catch { return }
+  if (st.isSymbolicLink()) return fs.rmSync(p, { recursive: true, force: true }) // Node 16 非 recursive 会跟随链接到目录抛 EISDIR；recursive 只摘链接
+  if (!allowRealDir) fail(`unexpected real directory, refusing to remove: ${p}`)
+  fs.rmSync(p, { recursive: true, force: true })
+}
+
 // ---------- 自有模块通道 ----------
 
 function installOwn(mod, root) {
@@ -289,10 +299,10 @@ function installOwn(mod, root) {
   step(`[${mod.name}] linking into profile module tree`)
   fs.mkdirSync(PROFILES_NM, { recursive: true })
   const linkA = path.join(PROFILES_NM, mod.name)
-  fs.rmSync(linkA, { force: true })
+  removeEntry(linkA)
   fs.symlinkSync(path.relative(PROFILES_NM, dest), linkA)
   const linkB = path.join(root, mod.name)
-  fs.rmSync(linkB, { force: true })
+  removeEntry(linkB)
   fs.symlinkSync(dest, linkB)
 
   step(`[${mod.name}] mounting row in ${PATCH_FILE}`)
@@ -303,10 +313,10 @@ function uninstallOwn(mod, flags = {}) {
   step(`[${mod.name}] removing mount row from ${PATCH_FILE}`)
   removePatchRow(pluginId(mod.name))
   step(`[${mod.name}] removing links and package dir`)
-  fs.rmSync(path.join(PROFILES_NM, mod.name), { force: true })
+  removeEntry(path.join(PROFILES_NM, mod.name))
   const root = flags.dshRoot || detectRuntimeRoot()
   if (root) {
-    fs.rmSync(path.join(root, mod.name), { force: true })
+    removeEntry(path.join(root, mod.name))
     console.log(`    removed ${path.join(root, mod.name)}`)
   } else {
     console.log('    runtime tree not detected, runtime link (if any) left in place')
@@ -656,7 +666,7 @@ function cmdUninstall(args, flags) {
   }
   if (flags.pruneBackups) {
     const baks = safeReaddir(PROFILE_DIR).filter((f) => f.includes('.bak'))
-    for (const b of baks) fs.rmSync(path.join(PROFILE_DIR, b), { force: true })
+    for (const b of baks) fs.rmSync(path.join(PROFILE_DIR, b), { recursive: true, force: true })
     console.log(baks.length ? `==> pruned ${baks.length} backup file(s): ${baks.join(', ')}` : '==> no backup files to prune')
   }
   if (!onlyPrune) console.log('\nDone. Restart DSH to finish removal.')

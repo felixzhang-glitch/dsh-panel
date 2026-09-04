@@ -47,6 +47,6 @@ This file provides guidance to Qoder (qoder.com) when working with code in this 
 - client 无 JSX，只用 `react.createElement`；bundle 必须手写 `window.__ModuleLoader__.load` 包装
 - 样式只用 `--dsw-*` 主题 token；locale 文案走 `ctx.get('locale')` 订阅
 - 静态插件没有 `host.call`，client 取 host 数据走 HTTP 路由
-- 语法验证：`node --check lib/*.js`（modules/ 有新模块时同样 `node --check`；dspm 改动跑 `node --check dspm`）
-- dspm 沙盒演练：`DSH_HOME=<临时目录> ./dspm ... --dsh-root <假运行树>`（沙盒需自带 dspm + third-party.json + package.json 副本）；注意运行树自动探测会优先命中正在运行的真实 dsh 进程，沙盒里务必显式传 `--dsh-root`；非交互 shell 无 node/bun，需把 fnm node 与 `~/.bun/bin` 加进 PATH
+- 语法验证：`node --check lib/*.js`（modules/ 有新模块时同样 `node --check`；dspm 改动跑 `node --check dspm.mjs`）
+- dspm 沙盒演练：`DSH_HOME=<临时目录> ./dspm.mjs ... --dsh-root <假运行树>`（沙盒需自带 dspm.mjs + third-party.json + package.json 副本）；注意运行树自动探测会优先命中正在运行的真实 dsh 进程，沙盒里务必显式传 `--dsh-root`；非交互 shell 无 node/bun，需把 fnm node 与 `~/.bun/bin` 加进 PATH
 - DSH 契约与开发规范见 `docs/reference/dsh-plugin-spec.md`

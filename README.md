@@ -21,7 +21,7 @@ DeepSeek Harness (DSH) 插件集合仓库，统一命令纳管自有模块与第
 ```
 git clone git@github.com:felixzhang-glitch/dsh-panel.git
 cd dsh-panel
-./dspm install all      # 装全部
+./dspm.mjs install all      # 装全部
 ```
 
 单命令多传参，`-h` 看全量帮助，`dspm <command> -h` 看单命令用法：

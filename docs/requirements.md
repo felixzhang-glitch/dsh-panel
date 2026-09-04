@@ -8,6 +8,18 @@
 
 ## 记录
 
+### 2026-09-04 dsh-token-usage v0.2.2 活跃热力图右移空白修复
+
+- 模块：dsh-token-usage
+- 需求：活跃热力图右侧出现空白带，横向滚动条可滚进无内容区域（幻影滚动），月份标签相对数据列累积右偏
+- 结果（3 处根因 + 1 处顺手修）：
+  - 月份行宽度双计 gap：`.tu-heatMonth` 宽 `--tu-step`(cell+3) 叠加 `.tu-heatMonths` 自身 gap 3 → 月槽位 cell+6 比数据列槽位宽 3px/周，整行宽出 `3×weeks` px 撑出幻影 scrollWidth；月宽改用 `--tu-cell` 与数据列槽位对齐
+  - 左偏移不一致：月份行 marginLeft 34，数据列实际左偏移 37（days 28 + margin 6 + flex gap 3）；统一常量 `LEFT_W=37`
+  - cellSize 上限 26 过低：宽容器下 180 天网格用不满宽度，右侧留空白；上限提至 40 且去掉 floor 余数缝隙（精确到 0.01px 填充）
+  - 自动滚底 `scrollLeft = scrollWidth` 改 `scrollWidth - clientWidth`
+- 验证：`node --check lib/client.js` 通过；几何恒等式 月份行宽 = 数据列宽 = `LEFT_W + weeks*cell + (weeks-1)*GAP`
+- 状态：已完成
+
 ### 2026-08-23 dsh-token-usage v0.2.1 审查修复
 
 - 模块：dsh-token-usage
