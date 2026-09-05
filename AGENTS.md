@@ -16,12 +16,12 @@ This file provides guidance to Qoder (qoder.com) when working with code in this 
 | 路径 | 职责 |
 | --- | --- |
 | `docs/` | 设计、架构、需求迭代文档与参考资料 |
-| `dspm`（仓库根） | 平台统一命令：`dspm <list\|install\|uninstall\|reload\|add\|update\|pin\|doctor> [target]`，支持 `-h`；自有模块走符号链接 + patch 行，第三方走 bun 直装 + 手动 reconcile bundles |
+| `dspm`（仓库根，无后缀） | 平台统一命令：`dspm <list\|install\|uninstall\|reload\|add\|update\|pin\|doctor\|web> [target]`，支持 `-h`；自有模块走符号链接 + patch 行，第三方走 bun 直装 + 手动 reconcile bundles；`web` 管 dsh web 服务生命周期（status/start/stop/restart/log，pidfile 与日志在 DSH_HOME） |
 | `third-party.json` | 第三方模块 registry（name / spec pin / channel / note），`dspm add` 写入，`install/reload/update/pin` 读取 |
 
 ### 第三方模块 dsh-better-sidebar（VSCode 式右侧栏工作台）
 
-- 源码不在本仓库（独立仓库 DSH-better-sidebar，npm 包形态接入），本仓库只在 `third-party.json` 登记（pin 0.14.0）+ dspm 编排
+- 源码不在本仓库（独立仓库 DSH-better-sidebar，npm 包形态接入），本仓库只在 `third-party.json` 登记（pin 0.18.0）+ dspm 编排
 - 安装走 dspm bun 通道（`bun add`，弃用官方 `dsh plugin` pnpm 转发——慢且不稳）：装后 `prunePeers` 剪除全部 `@deepseek-ai/*`/react/cordis（bun 强制自动装 peer，与宿主双实例必炸）、`fixExecBits` 恢复 node-pty `spawn-helper` 可执行位、`reconcileBundles` 登记进 `dsh.profile.bundles`；不建符号链接、不写 patch 行（手写挂载行会与 bundle 双挂载导致启动失败）
 - 文件树 / 编辑器 / 终端 / Git / 内嵌浏览器 / 文件预览（md / html / pdf / Office / 图片）由它提供，不再自建
 
@@ -47,6 +47,6 @@ This file provides guidance to Qoder (qoder.com) when working with code in this 
 - client 无 JSX，只用 `react.createElement`；bundle 必须手写 `window.__ModuleLoader__.load` 包装
 - 样式只用 `--dsw-*` 主题 token；locale 文案走 `ctx.get('locale')` 订阅
 - 静态插件没有 `host.call`，client 取 host 数据走 HTTP 路由
-- 语法验证：`node --check lib/*.js`（modules/ 有新模块时同样 `node --check`；dspm 改动跑 `node --check dspm.mjs`）
-- dspm 沙盒演练：`DSH_HOME=<临时目录> ./dspm.mjs ... --dsh-root <假运行树>`（沙盒需自带 dspm.mjs + third-party.json + package.json 副本）；注意运行树自动探测会优先命中正在运行的真实 dsh 进程，沙盒里务必显式传 `--dsh-root`；非交互 shell 无 node/bun，需把 fnm node 与 `~/.bun/bin` 加进 PATH
+- 语法验证：`node --check lib/*.js`（modules/ 有新模块时同样 `node --check`；dspm 改动跑 `node --check dspm`）
+- dspm 沙盒演练：`DSH_HOME=<临时目录> ./dspm ... --dsh-root <假运行树>`（沙盒需自带 dspm + third-party.json + package.json 副本）；注意运行树自动探测会优先命中正在运行的真实 dsh 进程，沙盒里务必显式传 `--dsh-root`；非交互 shell 无 node/bun，需把 fnm node 与 `~/.bun/bin` 加进 PATH
 - DSH 契约与开发规范见 `docs/reference/dsh-plugin-spec.md`

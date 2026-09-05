@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // dspm — dsh-panel 插件统一管理命令（macOS 自用）
-// 单入口：list / install / uninstall / reload / add / update / pin / doctor
+// 单入口：list / install / uninstall / reload / add / update / pin / doctor / web
 // 通道约定：
 //   自有模块（仓库根包 + modules/*）→ 拷包 + 双符号链接 + cordis.patch.yml 挂载行
 //   第三方（third-party.json 登记）→ bun 直装 + reconcileBundles 登记，不建链接、不写 patch 行
@@ -19,6 +19,8 @@ const PATCH_FILE = path.join(PROFILE_DIR, 'cordis.patch.yml')
 const PROFILE_PKG = path.join(PROFILE_DIR, 'package.json')
 const WS_YML = path.join(PROFILE_DIR, 'pnpm-workspace.yaml')
 const REGISTRY_FILE = path.join(REPO_ROOT, 'third-party.json')
+const WEB_PIDFILE = path.join(DSH_HOME, 'dsh-web.pid')
+const WEB_LOG = path.join(DSH_HOME, 'dsh-web.log')
 
 let detectedRoot // lazy 缓存
 
@@ -512,7 +514,7 @@ function statusOf(mod) {
   return mod.kind === 'own' ? ownStatus(mod) : bundleStatus(mod)
 }
 
-// ---------- DSH 进程 ----------
+// ---------- dsh web 服务管理（dspm web） ----------
 
 function findDshWebPids() {
   let out
@@ -533,35 +535,100 @@ function findDshWebPids() {
   return pids
 }
 
-function restartDsh(flags) {
-  if (!flags.yes) fail('重启将断开当前所有 DSH 会话（包括本对话）；确认请加 --yes')
-  step('stopping dsh web')
-  const pids = findDshWebPids()
-  if (!pids.length) console.log('    no running dsh web process found')
-  for (const pid of pids) {
-    try {
-      process.kill(pid, 'SIGTERM')
-      console.log(`    SIGTERM -> ${pid}`)
-    } catch {}
+function readWebPid() {
+  try {
+    const pid = parseInt(fs.readFileSync(WEB_PIDFILE, 'utf8').trim(), 10)
+    return Number.isInteger(pid) && pid > 0 ? pid : null
+  } catch {
+    return null
   }
+}
+
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// pidfile 与 ps 扫描并集：兼容不经 dspm 启动的孤儿进程
+function collectDshWebPids() {
+  const pids = new Set(findDshWebPids())
+  const p = readWebPid()
+  if (p && pidAlive(p)) pids.add(p)
+  return [...pids]
+}
+
+// 单杀即可：ps 扫描已同时命中 bunx 包装层与真实 dsh 进程；不做进程组杀，避免脏 pidfile 放大误杀面
+function killPid(pid, sig) {
+  try {
+    process.kill(pid, sig)
+  } catch {}
+}
+
+// 返回是否停掉了进程；三段式：SIGTERM → 最多等 5s → SIGKILL 兜底
+function stopDshWeb() {
+  let pids = collectDshWebPids()
+  if (!pids.length) {
+    fs.rmSync(WEB_PIDFILE, { force: true })
+    return false
+  }
+  step(`stopping dsh web (pid ${pids.join(', ')})`)
+  for (const pid of pids) killPid(pid, 'SIGTERM')
   const deadline = Date.now() + 5000
-  while (Date.now() < deadline && findDshWebPids().length) {
+  while (Date.now() < deadline && collectDshWebPids().length) cp.execSync('sleep 0.5')
+  pids = collectDshWebPids()
+  if (pids.length) {
+    console.log('    SIGTERM 未在 5s 内退出，升级 SIGKILL')
+    for (const pid of pids) killPid(pid, 'SIGKILL')
+  }
+  fs.rmSync(WEB_PIDFILE, { force: true })
+  return true
+}
+
+// 就绪判定：轮询日志新增内容里的服务 URL 行（bunx 首次解依赖可能慢，上限 30s）
+function startDshWeb() {
+  if (!hasCmd('bunx') && !hasCmd('npx')) fail('bunx / npx 都不可用，无法拉起 dsh web')
+  const [bin, args] = hasCmd('bunx')
+    ? ['bunx', ['@deepseek-ai/dsh@latest', 'web', '--no-open']]
+    : ['npx', ['-y', '@deepseek-ai/dsh', 'web', '--no-open']]
+  const offset = fs.existsSync(WEB_LOG) ? fs.statSync(WEB_LOG).size : 0
+  const logFd = fs.openSync(WEB_LOG, 'a')
+  const child = cp.spawn(bin, args, { detached: true, stdio: ['ignore', logFd, logFd] })
+  child.unref()
+  if (!child.pid) fail('spawn dsh web failed')
+  fs.writeFileSync(WEB_PIDFILE, String(child.pid))
+  console.log(`    pid ${child.pid}, log ${WEB_LOG}`)
+  const deadline = Date.now() + 30000
+  while (Date.now() < deadline) {
+    if (!pidAlive(child.pid)) break
+    const fresh = fs.readFileSync(WEB_LOG).subarray(offset).toString()
+    const m = fresh.match(/dsh web: (http:\/\/\S+)/)
+    if (m) {
+      console.log(`    ready: ${m[1]}`)
+      return true
+    }
     cp.execSync('sleep 0.5')
   }
-  if (findDshWebPids().length) console.log('    WARN: process still alive after SIGTERM')
+  console.error('    dsh web 未在 30s 内就绪，日志尾部：')
+  try {
+    shInherit(`tail -20 ${JSON.stringify(WEB_LOG)}`)
+  } catch {}
+  fs.rmSync(WEB_PIDFILE, { force: true })
+  return false
+}
+
+function restartDsh(flags) {
+  if (!flags.yes) fail('重启将断开当前所有 DSH 会话（包括本对话）；确认请加 --yes')
+  if (!stopDshWeb()) console.log('    no running dsh web process found')
   if (flags.noStart) {
     console.log('    --no-start given, not relaunching')
     return
   }
   step('starting dsh web (bunx @deepseek-ai/dsh@latest)')
-  const [bin, args] = hasCmd('bunx')
-    ? ['bunx', ['@deepseek-ai/dsh@latest', 'web']]
-    : ['npx', ['-y', '@deepseek-ai/dsh', 'web']]
-  const logFile = path.join(DSH_HOME, 'dspm-restart.log')
-  const logFd = fs.openSync(logFile, 'a')
-  const child = cp.spawn(bin, args, { detached: true, stdio: ['ignore', logFd, logFd] })
-  child.unref()
-  console.log(`    started, pid ${child.pid}; log: ${logFile}`)
+  if (!startDshWeb()) fail('dsh web 启动失败')
 }
 
 // ---------- 命令 ----------
@@ -580,6 +647,7 @@ const HELP = {
   update [target|all]       升级第三方模块到 npm 最新版并更新 pin
   pin <pkg> <version>       锁定第三方模块版本并重装
   doctor                    体检：断链 / patch 行缺失 / bundle 未登记 / 版本错配 / 备份残留
+  web <action>              dsh web 服务管理：status / start [--no-link] / stop / restart / log
 
 参数:
   target                    模块名（dsh-token-usage、modules/ 下模块、registry 第三方；可省 dsh- 前缀）
@@ -590,6 +658,8 @@ const HELP = {
   --no-start                配合 --restart：只停止，不自动拉起
   --prune-backups           配合 uninstall：清理 profile 里的 .bak-* 备份残留；不传 target 时仅清理不卸载
   --note "<text>"           配合 add：写入 registry 备注
+  --no-link                 配合 web start / restart：跳过启动前的插件同步
+  --lines <n>               配合 web log：tail 行数（默认 50）
   --yes                     确认危险操作
   -h, --help                显示帮助（dspm <command> -h 看单命令用法）
 
@@ -597,7 +667,8 @@ const HELP = {
   dspm list
   dspm install all
   dspm reload dsh-token-usage --restart --yes
-  dspm add dsh-xxx@1.2.0 --note "某个好用的插件"`,
+  dspm add dsh-xxx@1.2.0 --note "某个好用的插件"
+  dspm web start`,
   list: 'dspm list\n  列出全部模块（自有 + 第三方 registry）及安装状态',
   install: 'dspm install <target|all> [--dsh-root <path>]\n  安装模块；幂等，断链/缺行重跑即修复；默认 all',
   uninstall: 'dspm uninstall <target|all> [--prune-backups]\n  卸载模块；自有模块移除 patch 行（留 .bak-uninstall 备份）+ 链接 + 包目录，第三方走 bun remove\n  --prune-backups 不传 target 时仅清理 .bak-* 备份，不卸载',
@@ -606,6 +677,7 @@ const HELP = {
   update: 'dspm update [target|all]\n  对第三方模块 npm view 最新版，与 pin 不同则更新 registry 并重装；默认全部第三方',
   pin: 'dspm pin <pkg> <version>\n  锁定 registry 中第三方模块的版本并重装',
   doctor: 'dspm doctor\n  全量体检并给出修复建议；有问题时退出码为 1',
+  web: 'dspm web <status|start|stop|restart|log>\n  dsh web 服务管理；pidfile ~/.dsh/dsh-web.pid，日志 ~/.dsh/dsh-web.log\n  status: running 退出码 0 / stopped 退出码 1；start / restart: 默认先同步全部插件（--no-link 跳过）再拉起，日志出现服务 URL 即就绪并回显地址；stop: SIGTERM 5s 后 SIGKILL 兜底；log: 看日志尾部（--lines <n>，默认 50）',
 }
 
 // CJK 字符按 2 列宽对齐
@@ -638,7 +710,7 @@ function cmdList() {
   console.log(`profile:      ${PROFILE_DIR}`)
 }
 
-function cmdInstall(args, flags) {
+function cmdInstall(args, flags, opts = {}) {
   step('checking prerequisites')
   if (!fs.existsSync(PROFILE_DIR)) fail(`DSH web profile not found: ${PROFILE_DIR} (run 'dsh' at least once)`)
   const targets = resolveTargets(args[0] || 'all')
@@ -651,7 +723,7 @@ function cmdInstall(args, flags) {
     if (m.kind === 'own') installOwn(m, root)
     else installBundle(m)
   }
-  console.log("\nDone. Restart DSH ('dsh web' / your launcher) to load the changes.")
+  if (!opts.quietDone) console.log("\nDone. Restart DSH ('dsh web' / your launcher) to load the changes.")
 }
 
 function cmdUninstall(args, flags) {
@@ -786,6 +858,46 @@ function cmdDoctor() {
   process.exit(1)
 }
 
+function cmdWeb(args, flags) {
+  const sub = args[0] || fail('usage: dspm web <status|start|stop|restart|log>（dspm web -h 看用法）')
+  const pid = readWebPid()
+  const running = pid !== null && pidAlive(pid)
+  switch (sub) {
+    case 'status':
+      if (running) console.log(`running (pid ${pid}, log ${WEB_LOG})`)
+      else {
+        console.log('stopped')
+        process.exit(1)
+      }
+      return
+    case 'start':
+      if (running) {
+        console.log(`already running (pid ${pid})`)
+        return
+      }
+      if (!flags.noLink) cmdInstall(['all'], flags, { quietDone: true })
+      step('starting dsh web')
+      if (!startDshWeb()) process.exit(1)
+      return
+    case 'stop':
+      console.log(stopDshWeb() ? 'stopped' : 'not running')
+      return
+    case 'restart':
+      stopDshWeb()
+      if (!flags.noLink) cmdInstall(['all'], flags, { quietDone: true })
+      step('starting dsh web')
+      if (!startDshWeb()) process.exit(1)
+      return
+    case 'log': {
+      if (!fs.existsSync(WEB_LOG)) fail(`${WEB_LOG} 不存在（服务从未启动过？）`)
+      shInherit(`tail -n ${flags.lines || 50} ${JSON.stringify(WEB_LOG)}`)
+      return
+    }
+    default:
+      fail(`unknown dspm web action '${sub}'（可选：status / start / stop / restart / log）`)
+  }
+}
+
 // ---------- 入口 ----------
 
 function main() {
@@ -801,6 +913,12 @@ function main() {
     else if (a === '--prune-backups') flags.pruneBackups = true
     else if (a === '--yes') flags.yes = true
     else if (a === '--note') flags.note = argv[++i]
+    else if (a === '--no-link') flags.noLink = true
+    else if (a === '--lines') {
+      const n = parseInt(argv[++i], 10)
+      if (!Number.isInteger(n) || n <= 0) fail('--lines 需要一个正整数')
+      flags.lines = n
+    }
     else if (a.startsWith('-')) fail(`unknown option '${a}' (see dspm -h)`)
     else args.push(a)
   }
@@ -838,6 +956,9 @@ function main() {
       break
     case 'doctor':
       cmdDoctor()
+      break
+    case 'web':
+      cmdWeb(args, flags)
       break
     default:
       fail(`unknown command '${command}' (see dspm -h)`)

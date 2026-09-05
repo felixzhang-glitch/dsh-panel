@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 平台文档层 | `docs/` | 设计、架构、需求迭代记录与参考资料 |
 | 模块代码层 | 仓库根（dsh-token-usage 包，历史原因）+ `modules/<模块名>/`（新模块） | 一个模块一个插件包，含 `lib/`、`package.json` |
-| 分发层 | `dspm`（仓库根）+ `third-party.json` | 平台统一命令 dspm（list/install/uninstall/reload/add/update/pin/doctor）；自有模块走符号链接 + patch 行，第三方登记 registry 后走 bun 直装 + 手动 reconcile bundles |
+| 分发层 | `dspm`（仓库根）+ `third-party.json` | 平台统一命令 dspm（list/install/uninstall/reload/add/update/pin/doctor/web）；自有模块走符号链接 + patch 行，第三方登记 registry 后走 bun 直装 + 手动 reconcile bundles；web 管 dsh web 服务生命周期 |
 
 > 自有新模块接入时在本文件追加「模块架构」小节，并在 `design.md` 模块清单登记
 
@@ -142,5 +142,5 @@ profile package.json：dependencies + dsh.profile.bundles 登记
 - 与自有模块的符号链接 + patch 行通道完全独立：不建链接、不写用户 patch 行；手写挂载行会与 bundle 双挂载（duplicate prefix route 导致启动失败）
 - 卸载走 `dspm uninstall dsh-better-sidebar`（底层 `bun remove` + reconcileBundles 摘除）
 - 升级走 `dspm update dsh-better-sidebar`（npm view 最新版 → 更新 registry pin → 重装）；锁版回滚走 `dspm pin`
-- 版本耦合：0.14.0 适配 DSH 0.1.0-rc.8，升级 better-sidebar 前先确认 DSH 运行树版本
+- 版本耦合：0.18.0 适配 DSH 0.1.0-rc.8，升级 better-sidebar 前先确认 DSH 运行树版本
 - 它暴露 `ctx.betterSidebar` 服务（registerTab / registerFileViewer），后续自有模块可扩展侧边栏页面而非自建 UI

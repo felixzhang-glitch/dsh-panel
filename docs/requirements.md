@@ -8,6 +8,18 @@
 
 ## 记录
 
+### 2026-09-05 平台 dspm 吸收 dsh web 启动管理 + 去后缀改名
+
+- 模块：平台
+- 需求：dsh web 服务启动管理原为仓库外 bash 脚本（`~/data/deepseek/dsh`，pidfile + nohup），与 dspm 形成两个入口，且启动前同步插件要单独 spawn dspm install all；收编进 dspm 统一命令面，并将 dspm 入口文件去后缀
+- 结果：
+  - 新增 `dspm web <status|start|stop|restart|log>`（pidfile `~/.dsh/dsh-web.pid`，日志 `~/.dsh/dsh-web.log`）：status 退出码 0 running / 1 stopped；start/restart 默认先幂等同步全部插件（`--no-link` 跳过），就绪判定从盲等 3s 改为轮询日志服务 URL 行（上限 30s），命中回显带 token 的 URL；stop 三段式 SIGTERM(5s) → SIGKILL，停止目标取 pidfile 与 ps 扫描并集（兼容孤儿进程）；`log` 走 `--lines <n>`（默认 50）
+  - `reload --restart` 路径复用：改为委托同一 stop/start；启动追加 `--no-open` 防弹浏览器；日志统一 `dsh-web.log`（dspm-restart.log 废弃）
+  - `dspm.mjs` 改名无后缀 `dspm`（shebang + 可执行位 + `"type": "module"` 保证 ESM 加载）；`./dspm` 与 `node dspm` 均可
+  - 外部脚本 `~/data/deepseek/dsh` 改一行转发 shim（`dspm web`，无参默认 status），逻辑零重复
+- 验证：`node --check dspm` 通过；沙盒（临时 DSH_HOME + 假 pid）status/stop/log/参数错误全用例通过；真机 start → HTTP 可达 → restart --no-link → reload --restart 回归 → stop 全通过，无残留进程、pidfile 清理干净
+- 状态：已完成
+
 ### 2026-09-04 dsh-token-usage v0.2.2 活跃热力图右移空白修复
 
 - 模块：dsh-token-usage

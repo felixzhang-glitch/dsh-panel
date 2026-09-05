@@ -3,7 +3,7 @@
 - 类型：第三方包（DSH 插件，npm 包形态）
 - 用途：VSCode 式右侧栏工作台（文件树 / CodeMirror 编辑器 / 终端 / Git / 内嵌浏览器 / 文件预览），本仓库不自建侧边栏能力
 - 文档链接：上游仓库 github.com/omdsh-dev/DSH-better-sidebar（MIT），源码以上游为准
-- 版本：pin 0.14.0（`third-party.json`），适配 DSH 0.1.0-rc.8
+- 版本：pin 0.18.0（`third-party.json`），适配 DSH 0.1.0-rc.8
 
 ### 关键用法
 

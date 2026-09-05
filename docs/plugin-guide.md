@@ -246,7 +246,7 @@ dist/
 tar czf dsh-token-usage-dist.tar.gz dist/   # 权限先 chmod 755/644
 ```
 
-> 仓库内安装统一由 `bin/dspm.mjs`（dspm）承担，不再随包分发独立安装脚本
+> 仓库内安装统一由仓库根的 `dspm`（node 单文件命令）承担，不再随包分发独立安装脚本
 
 ### dspm 安装自有模块的四步
 

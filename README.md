@@ -21,7 +21,7 @@ DeepSeek Harness (DSH) 插件集合仓库，统一命令纳管自有模块与第
 ```
 git clone git@github.com:felixzhang-glitch/dsh-panel.git
 cd dsh-panel
-./dspm.mjs install all      # 装全部
+./dspm install all          # 装全部
 ```
 
 单命令多传参，`-h` 看全量帮助，`dspm <command> -h` 看单命令用法：
@@ -36,6 +36,7 @@ cd dsh-panel
 | `dspm update [target]` | 第三方升级到 npm 最新版并更新 pin |
 | `dspm pin <pkg> <ver>` | 锁定第三方版本并重装 |
 | `dspm doctor` | 体检：断链 / patch 缺失 / bundle 未登记 / 版本错配 / 备份残留 |
+| `dspm web <action>` | dsh web 服务管理：status / start [--no-link] / stop / restart / log |
 
 target 为模块名（可省 `dsh-` 前缀），默认 all；运行树 node_modules 根自动探测，探不到用 `--dsh-root <path>`
 
@@ -49,7 +50,9 @@ target 为模块名（可省 `dsh-` 前缀），默认 all；运行树 node_modu
 web profile 无 HMR：
 
 - client 半改动 → 浏览器硬刷新即生效
-- host 半 / patch 行改动 → 需重启 DSH：`dspm reload <target> --restart --yes`（kill 后以 `bunx @deepseek-ai/dsh@latest web` 后台拉起，日志 `~/.dsh/dspm-restart.log`；会断开当前所有会话，故必须显式 `--yes`）
+- host 半 / patch 行改动 → 需重启 DSH：`dspm reload <target> --restart --yes`（kill 后以 `bunx @deepseek-ai/dsh@latest web` 后台拉起，日志 `~/.dsh/dsh-web.log`；会断开当前所有会话，故必须显式 `--yes`）
+
+服务生命周期由 `dspm web` 统一管理（`reload --restart` 复用同一 stop/start）：`start` 默认先幂等同步全部插件再拉起（`--no-link` 跳过），就绪判定为日志出现服务 URL 并回显带 token 地址；`stop` 三段式 SIGTERM(5s) → SIGKILL；pidfile `~/.dsh/dsh-web.pid`、日志 `~/.dsh/dsh-web.log`
 
 ## 结构
 
@@ -79,6 +82,6 @@ docs/             # 设计 / 架构 / 需求迭代 / 参考资料
 
 - dsh-token-usage 依赖契约：`sessionQuery`、`webServer.register`、`settings.section` 槽位；验证版本 DSH 0.1.0-rc.6
 - dsh-time-awareness 依赖契约：`agents` 注册表的 `agent/pre-step` 瀑布；patch 行可选 config（`timeZone` / `refreshIntervalMs` / `everyStep`）；验证版本 DSH 0.1.0-rc.8
-- dsh-better-sidebar 0.14.0 适配 DSH 0.1.0-rc.8，升级前先确认运行树版本（`dspm update` 前同理）
+- dsh-better-sidebar 0.18.0 适配 DSH 0.1.0-rc.8，升级前先确认运行树版本（`dspm update` 前同理）
 
 插件市场见 [github.com/topics/dsh-plugin](https://github.com/topics/dsh-plugin)

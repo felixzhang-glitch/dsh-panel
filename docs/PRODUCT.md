@@ -12,8 +12,8 @@ dsh-panel 是 DeepSeek Harness (DSH) 的静态插件集合仓库（自用，仅 
 |---|---|---|
 | dsh-token-usage | 已完成 v0.2.1 | 模型用量统计面板：指标卡、活跃热力图、按天趋势（top5 模型堆叠柱 + 缓存命中率折线）、模型占比环图；挂载设置 → 用量统计 |
 | dsh-time-awareness | 已完成 v0.1.0 | 时间感知：每轮 step 1 注入一条带时区的时间读取（时间戳、浏览器时区策略、耗时），host-only 无 UI |
-| dsh-better-sidebar 接入 | 已完成 0.14.0 | 第三方 VSCode 式工作台（文件树 / 编辑器 / 终端 / Git / 内嵌浏览器 / 文件预览），`third-party.json` 登记 + dspm bun 通道纳管 |
-| dspm 统一管理命令 | 已完成 | `list / install / uninstall / reload / add / update / pin / doctor`，自有符号链接通道 + 第三方 bun bundle 通道，模块自动发现 |
+| dsh-better-sidebar 接入 | 已完成 0.18.0 | 第三方 VSCode 式工作台（文件树 / 编辑器 / 终端 / Git / 内嵌浏览器 / 文件预览），`third-party.json` 登记 + dspm bun 通道纳管 |
+| dspm 统一管理命令 | 已完成 | `list / install / uninstall / reload / add / update / pin / doctor / web`，自有符号链接通道 + 第三方 bun bundle 通道，模块自动发现，`web` 管 dsh web 服务生命周期 |
 
 ## 非目标
 

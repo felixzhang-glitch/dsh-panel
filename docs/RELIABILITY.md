@@ -7,7 +7,7 @@
 
 ## 监控与告警
 
-- 日志：DSH 重启日志 `~/.dsh/dspm-restart.log`；模块异常走 `ctx.logger.warn`（time-awareness 注入失败只告警不挂 turn）
+- 日志：dsh web 服务日志 `~/.dsh/dsh-web.log`（`dspm web log` 可查尾）；模块异常走 `ctx.logger.warn`（time-awareness 注入失败只告警不挂 turn）
 - 健康检查：`dspm doctor`——断链（链接 A/B）、patch 行缺失、bundle 未登记、registry pin 与实装版本错配、`.bak-*` 备份残留
 - 告警渠道与阈值：无（自用，靠 doctor 主动巡检）
 
